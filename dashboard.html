@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Manager Dashboard</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #f5f6fa;
+        }
+
+        .navbar {
+            background: #2193b0;
+            padding: 1rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 2px solid white;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: white;
+            color: #2193b0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .add-password {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .add-btn {
+            background: #2193b0;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .add-btn:hover {
+            background: #1b7a8d;
+        }
+
+        .passwords-list {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .password-item {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .password-item:last-child {
+            border-bottom: none;
+        }
+
+        .password-details h3 {
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .password-details p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .password-actions button {
+            padding: 5px 10px;
+            margin-left: 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #ff4444;
+            color: white;
+        }
+
+        #message {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .error {
+            background: #ff4444;
+            color: white;
+        }
+
+        /* Vault unlock modal */
+        .vault-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .vault-modal .modal-content {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .vault-modal input {
+            width: 100%;
+            padding: 0.75rem;
+            margin: 1rem 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        .vault-modal button {
+            background: #2193b0;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .vault-modal button:hover {
+            background: #197a9a;
+        }
+        /* Modal logout button */
+        .modal-logout-btn {
+            background: transparent;
+            color: #ff4444;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-left: 1rem;
+        }
+        .modal-logout-btn:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <!-- Vault modal (create or unlock) -->
+    <div id="vaultModal" class="vault-modal">
+        <div class="modal-content">
+            <h2 id="vaultModalHeader">Unlock Your Vault</h2>
+            <input type="password" id="masterPasswordInput" placeholder="Master Password" />
+            <input type="password" id="confirmMasterPasswordInput" placeholder="Confirm Password" style="display:none;" />
+            <div>
+                <button id="unlockBtn">Unlock</button>
+                <button id="createMasterBtn" style="display:none; margin-left:1rem;">Create Master Password</button>
+                <button id="logoutModalBtn" class="modal-logout-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+    <nav class="navbar">
+        <h1>Password Manager</h1>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+            <button id="showStoredPasswordsBtn" class="logout-btn">Stored Passwords</button>
+            <!-- Ensure this button is always visible -->
+            <button id="resetVaultBtn" class="logout-btn" style="background: #ff9800; color: white;">Reset Vault Password</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="add-password">
+            <h2>Add New Password</h2>
+            <form id="addPasswordForm">
+                <div class="form-group">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="add-btn">Add Password</button>
+            </form>
+        </div>
+        <!-- Password Generator UI -->
+        <div class="add-password" id="passwordGeneratorSection" style="margin-bottom:2rem;">
+            <h2>Password Generator</h2>
+            <div class="form-group">
+                <label for="length">Length</label>
+                <input type="number" id="length" value="16" min="8" max="64">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="lower" checked> Lowercase</label>
+                <label><input type="checkbox" id="upper" checked> Uppercase</label>
+                <label><input type="checkbox" id="numbers" checked> Numbers</label>
+                <label><input type="checkbox" id="symbols" checked> Symbols</label>
+                <label><input type="checkbox" id="similar"> Exclude Similar</label>
+                <label><input type="checkbox" id="ambiguous"> Exclude Ambiguous</label>
+            </div>
+            <div class="form-group">
+                <button type="button" onclick="handleGenerate()" class="add-btn">Generate</button>
+                <button type="button" onclick="handleCopy()" class="add-btn" style="background:#4CAF50;">Copy</button>
+            </div>
+            <div class="form-group">
+                <input type="text" id="output" readonly style="width:100%;font-size:1.1rem;">
+            </div>
+        </div>
+        <div class="passwords-list" id="passwordsList">
+            <!-- Passwords will be dynamically added here -->
+        </div>
+    </div>
+
+    <div id="message"></div>
+
+    <!-- Stored Passwords Modal -->
+    <div id="storedPasswordsModal" class="vault-modal" style="display:none;">
+        <div class="modal-content" style="max-width:600px;">
+            <h2>Stored Passwords</h2>
+            <div id="websitesList"></div>
+            <div id="passwordDetails" style="margin-top:1.5rem; display:none;">
+                <h3 id="selectedWebsite"></h3>
+                <input type="text" id="decryptedPassword" readonly style="width:80%;margin-bottom:1rem;" />
+                <button id="copyDecryptedBtn">Copy Password</button>
+            </div>
+            <button id="closeStoredPasswordsBtn" class="modal-logout-btn" style="color:#2193b0;">Close</button>
+        </div>
+    </div>
+
+    <!-- Reset Vault Password Modal -->
+    <div id="resetVaultModal" class="vault-modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Reset Vault Password</h2>
+            <input type="password" id="currentVaultPassword" placeholder="Current Master Password" />
+            <input type="password" id="newVaultPassword" placeholder="New Master Password" />
+            <input type="password" id="confirmNewVaultPassword" placeholder="Confirm New Master Password" />
+            <div>
+                <button id="resetVaultConfirmBtn">Reset Password</button>
+                <button id="resetVaultCancelBtn" class="modal-logout-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="VaultSessionManager.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
